@@ -7,12 +7,14 @@ Saves specifics topics to bag file
 import rospy, roslib, rosbag
 roslib.load_manifest('pr2_msgs')
 
-from sensor_msgs.msg import JointState, Image
+from sensor_msgs.msg import JointState, Image, CompressedImage
 from pr2_msgs.msg import PressureState
+
+import threading
 
 PR2_TOPICS_AND_TYPES = [('/joint_states', JointState),
                         ('/pressure/l_gripper_motor', PressureState),
-                        ('/l_forearm_cam/image_rect_color', Image)]
+                        ('/l_forearm_cam/image_rect_color/compressed', CompressedImage)]
 
 class SaveData:
     def __init__(self, bag_name, topics_and_types):
@@ -27,6 +29,8 @@ class SaveData:
         for topic, type in topics_and_types:
             print('Subscribing to {0} of type {1}'.format(topic, str(type)))
             self.subs.append(rospy.Subscriber(topic, type, self._callback_wrapper(topic)))
+            
+        self.lock = threading.Lock()
     
     def start(self):
         self.is_recording = True
@@ -36,12 +40,24 @@ class SaveData:
     
     def stop(self):
         self.pause()
-        self.bag.close()
+        while not rospy.is_shutdown():
+            with self.lock:
+                try:
+                    self.bag.close()
+                    break
+                except Exception as e:
+                    print('Error closing bag file: {0}'.format(e))
+                    rospy.sleep(0.1)
+                    raw_input()
         
     def _callback_wrapper(self, topic):
         def _callback(data):
             if self.is_recording:
-                self.bag.write(topic, data)
+                with self.lock:
+                    try:
+                        self.bag.write(topic, data)
+                    except Exception as e:
+                        pass
         return _callback
 
 #########
@@ -53,11 +69,11 @@ def test():
     
     topics_and_types = PR2_TOPICS_AND_TYPES
     sd = SaveData('../data/test.bag', topics_and_types)
-    rospy.sleep(0.1)
+    rospy.sleep(1)
     
     print('Recording...')
     sd.start()
-    rospy.sleep(0.5)
+    rospy.sleep(1)
     sd.stop()
     print('Saved!')
     

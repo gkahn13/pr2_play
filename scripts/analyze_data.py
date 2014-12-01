@@ -6,25 +6,26 @@ Analyze bag file data
 
 from collections import defaultdict
 
-import rospy, rosbag
+import rospy, rosbag, roslib
+roslib.load_manifest('cv_bridge')
 import cv_bridge
 
 import numpy as np
 import matplotlib.pyplot as plt
+import cv2
 
 import IPython
 
 class AnalyzeData:
     def __init__(self, bag_name):
-        bag = rosbag.Bag(bag_name)
+        bag = rosbag.Bag(bag_name, 'r')
         self.topics = defaultdict(list)
         
         for topic, msg, t in bag.read_messages():
             self.topics[topic].append((t, msg))
             
         self.analyze_forces = AnalyzeForces(self.topics['/pressure/l_gripper_motor'])
-        self.analyze_images = AnalyzeImages(self.topics['/l_forearm_cam/image_rect_color'])
-        
+        self.analyze_images = AnalyzeImages(self.topics['/l_forearm_cam/image_rect_color/compressed'])
         
     def display_forces(self):
         self.analyze_forces.display()
@@ -78,7 +79,8 @@ class AnalyzeImages:
         cv = cv_bridge.CvBridge()
         
         self.times = [msg[0].to_sec() for msg in image_msgs]
-        self.ims = [cv.imgmsg_to_cv2(msg[1]) for msg in image_msgs]
+        #self.ims = [cv.imgmsg_to_cv(msg[1]) for msg in image_msgs]
+        self.ims = [cv2.imdecode(np.fromstring(msg[1].data, np.uint8), cv2.CV_LOAD_IMAGE_COLOR) for msg in image_msgs]
         
         self.T = len(self.ims)
 
@@ -87,10 +89,13 @@ class AnalyzeImages:
         
         step = int(self.T/float(T))
         plt.subplot(T, 1, 1)
-        plt.title('{0:.2f} seconds between images'.format(self.times[step] - self.times[0]))
-        for t, im in enumerate(self.ims[::step]):
-            plt.subplot(T, 1, t+1)
+        ims_sub = self.ims[::step]
+        for t, im in enumerate(ims_sub):
+            plt.subplot(len(ims_sub), 1, t+1)
+            if t == 0:
+                plt.title('{0:.2f} seconds between images'.format(self.times[step] - self.times[0]))
             plt.imshow(im)
+            
         
         plt.show(block=False)
         
@@ -102,9 +107,9 @@ class AnalyzeImages:
 def test():
     rospy.init_node('analyze_data', anonymous=True)
     
-    ad = AnalyzeData('../data/test.bag')
+    ad = AnalyzeData('../data/touch_test.bag')
     
-    ad.display_forces()
+    #ad.display_forces()
     ad.display_images()
     
     print('Press enter to exit')
