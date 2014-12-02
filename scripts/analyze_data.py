@@ -107,10 +107,10 @@ class AnalyzeImages:
 def test():
     rospy.init_node('analyze_data', anonymous=True)
     
-    ad = AnalyzeData('../data/touch_test.bag')
+    ad = AnalyzeData('../data/push_box.bag')
     
-    #ad.display_forces()
-    ad.display_images()
+    ad.display_forces()
+    #ad.display_images()
     
     print('Press enter to exit')
     raw_input()

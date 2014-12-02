@@ -73,7 +73,7 @@ def test():
     
     print('Recording...')
     sd.start()
-    rospy.sleep(1)
+    rospy.sleep(30)
     sd.stop()
     print('Saved!')
     
