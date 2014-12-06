@@ -79,8 +79,8 @@ class Play:
         """
         Push an object (with the material attached) across a surface
         """
-        home_pose = tfx.pose([0.54, 0.2, 0.75], tfx.tb_angles(-90,0,0), frame='base_link')
-        home_joints = [0.697, 0.27, 2.21, -1.1163, -0.35143,-1.19, -0.82]
+        home_pose = tfx.pose([0.54, 0.2, 0.71], tfx.tb_angles(-90,0,0), frame='base_link')
+        home_joints = [0.6857, 0.31154, 2.21, -1.062444, -0.33257,-1.212881, -0.81091]
         delta_pos = [0, -0.10, 0]
         speed = 0.02
         file = '../data/push_{0}_on_{1}.bag'.format(self.object_material, self.floor_material)
@@ -126,7 +126,7 @@ def test_home_pose():
     a = arm.Arm('left')
     
     # push home_pose
-    home_pose = tfx.pose([0.54, 0.2, 0.73], tfx.tb_angles(-90,0,0), frame='base_link')
+    home_pose = tfx.pose([0.54, 0.2, 0.71], tfx.tb_angles(-90,0,0), frame='base_link')
     a.go_to_pose(home_pose)
     
     IPython.embed()
