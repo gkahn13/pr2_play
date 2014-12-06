@@ -14,6 +14,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import cv2
 
+import argparse
 import IPython
 
 class AnalyzeData:
@@ -56,18 +57,18 @@ class AnalyzeForces:
             self.forces_r[:,t] = force_msgs[t][1].r_finger_tip - start_forces_r
             
     def display(self):
+        f_left, axes_left = plt.subplots(self.N, sharex=True, sharey=True)
+        f_right, axes_right = plt.subplots(self.N, sharex=True, sharey=True)
+
+        axes_left[0].set_title('Left finger')
+        axes_right[0].set_title('Right finger')
+    
         for i in xrange(self.N):
-            plt.figure(1)
-            plt.subplot(self.N, 1, i+1)
-            if i == 0:
-                plt.title('Left finger')
-            plt.plot(self.times, self.forces_l[i,:], 'r')
+            axes_left[i].plot(self.times, self.forces_l[i,:], 'r')
+            axes_right[i].plot(self.times, self.forces_r[i,:], 'b')
             
-            plt.figure(2)
-            plt.subplot(self.N, 1, i+1)
-            if i == 0:
-                plt.title('Right finger')
-            plt.plot(self.times, self.forces_r[i,:], 'b')
+        f_left.subplots_adjust(hspace=0)
+        f_right.subplots_adjust(hspace=0)
             
         plt.show(block=False)
         
@@ -104,16 +105,18 @@ class AnalyzeImages:
 # TESTS #
 #########
 
-def test():
+if __name__ == '__main__':
     rospy.init_node('analyze_data', anonymous=True)
     
-    ad = AnalyzeData('../data/push_box.bag')
+    parser = argparse.ArgumentParser()
+    parser.add_argument('bag_name')
+
+    args = parser.parse_args(rospy.myargv()[1:])
+    
+    ad = AnalyzeData('../data/' + args.bag_name)
     
     ad.display_forces()
     #ad.display_images()
     
     print('Press enter to exit')
     raw_input()
-        
-if __name__ == '__main__':
-    test()

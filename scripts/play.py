@@ -18,18 +18,35 @@ import numpy as np
 import argparse
 import IPython
 
+""" Names of materials (match with JPG images) """
+big_cloths = ['bc{0}'.format(i) for i in xrange(1,6)]
+hards = ['h{0}'.format(i) for i in xrange(1,6)]
+rugs = ['r{0}'.format(i) for i in xrange(1,7)]
+small_cloths = ['sc{0}'.format(i) for i in xrange(1,8)]
+
+""" Name lists used for 'all' Play tests """
+all_materials = big_cloths + hards + rugs + small_cloths
+object_materials = small_cloths + rugs
+floor_materials = big_cloths + hards
+
 
 class Play:
-    def __init__(self, material_name):
-        self.material_name = material_name
-        
+    def __init__(self, object_material, floor_material='None', pressure_threshold=10000):
         self.arm = arm.Arm('left', default_speed=0.08)
-        self.arm.set_gripper(0.75*self.arm.min_grasp + 0.25*self.arm.max_grasp)
         
         self.pressure_sub = rospy.Subscriber('/pressure/l_gripper_motor', PressureState, self._pressure_callback)
+        self.pressure_threshold = pressure_threshold
+        
+        self.reset(object_material, floor_material)
+        
+    def reset(self, object_material, floor_material='None'):
+        self.object_material = object_material
+        self.floor_material = floor_material
+        
         self.last_forces_l = self.last_forces_r = None
         self.zero_forces_l = self.zero_forces_r = None
-        self.pressure_threshold = 5000
+        
+        self.arm.set_gripper(0.75*self.arm.min_grasp + 0.25*self.arm.max_grasp)
     
     def _pressure_callback(self, msg):
         self.last_forces_l = np.array(msg.l_finger_tip)
@@ -54,25 +71,25 @@ class Play:
         home_joints = [0.57, 0.1233, 1.288, -1.58564, 1.695, -1.85322, 14.727]
         delta_pos = [0, 0, -0.10]
         speed = 0.02
-        file_name = '../data/touch_{0}.bag'.format(self.material_name)
+        file = '../data/touch_{0}.bag'.format(self.object_material)
 
-        self.execute_experiment(file_name, home_joints, home_pose, delta_pos, speed=speed)
+        self.execute_experiment(file, home_joints, home_pose, delta_pos, speed=speed)
     
     def push(self):
         """
         Push an object (with the material attached) across a surface
         """
-        home_pose = tfx.pose([0.54, 0.2, 0.8], tfx.tb_angles(-90,0,0), frame='base_link')
-        home_joints = [0.7233, 0.118, 2.20911, -1.27236, -0.439,-1.13, 18.00]
-        delta_pos = [0, -0.20, 0]
+        home_pose = tfx.pose([0.54, 0.2, 0.75], tfx.tb_angles(-90,0,0), frame='base_link')
+        home_joints = [0.697, 0.27, 2.21, -1.1163, -0.35143,-1.19, -0.82]
+        delta_pos = [0, -0.10, 0]
         speed = 0.02
-        file_name = '../data/push_{0}.bag'.format(self.material_name)
+        file = '../data/push_{0}_on_{1}.bag'.format(self.object_material, self.floor_material)
         
-        self.execute_experiment(file_name, home_joints, home_pose, delta_pos, speed=speed)
+        self.execute_experiment(file, home_joints, home_pose, delta_pos, speed=speed)
         
-    def execute_experiment(self, file_name, home_joints, home_pose, delta_pos, speed=0.02):
-        print('Recording to file: {0}'.format(file_name))
-        sd = save_data.SaveData(file_name, save_data.PR2_TOPICS_AND_TYPES)
+    def execute_experiment(self, file, home_joints, home_pose, delta_pos, speed=0.02):
+        print('Recording to file: {0}'.format(file))
+        sd = save_data.SaveData(file, save_data.PR2_TOPICS_AND_TYPES)
         
         print('Going to home joints')
         self.arm.go_to_joints(home_joints)
@@ -101,25 +118,50 @@ class Play:
             rospy.sleep(0.1)
         
         
-    
-
 #########
 # TESTS #
 #########
 
-def test_arm():
+def test_home_pose():
     a = arm.Arm('left')
+    
+    # push home_pose
+    home_pose = tfx.pose([0.54, 0.2, 0.73], tfx.tb_angles(-90,0,0), frame='base_link')
+    a.go_to_pose(home_pose)
     
     IPython.embed()
 
+def go_play_touch_all():
+    play = Play('Does not matter', 'touch')
+    for object_material in all_materials:
+        play.reset(object_material)
+        print('Press enter to touch: {0}'.format(object_material))
+        raw_input()
+        print('Now touching {0}...'.format(object_material))
+        play.touch()
     
-def go_play(material_name, action):
-    print('Doing action ({0}) with material ({1})'.format(action, material_name))
-    play = Play(material_name)
+def go_play_push_all():
+    play = Play('Does not matter', 'push')
+    for floor_material in floor_materials:
+        print('########################')
+        print('floor_material: {0}'.format(floor_material))
+        print('########################')
+        for object_material in object_materials:
+            play.reset(object_material, floor_material)
+            print('On floor_material: {0} -- pushing {1}'.format(floor_material, object_material))
+            raw_input()
+            print('(pushing...)')
+            play.push()
+            
+    
+def go_play(object_material, action, floor_material='None'):
+    play = Play(object_material, floor_material=floor_material)
     
     if action == 'touch':
+        print('Doing action ({0}) with material ({1})'.format(action, object_material))
         play.touch()
     elif action == 'push':
+        print('Doing action ({0}) with material ({1}) on material ({2})'.format(action, object_material, floor_material))
         play.push()
 
 if __name__ == '__main__':
@@ -127,11 +169,16 @@ if __name__ == '__main__':
     rospy.sleep(0.1)
     
     parser = argparse.ArgumentParser()
-    parser.add_argument('material_name')
+    parser.add_argument('object_material')
     parser.add_argument('action', choices=('touch','push'))
+    parser.add_argument('floor_material', nargs='?', default='None')
     
     args = parser.parse_args(rospy.myargv()[1:])
-    go_play(args.material_name, args.action)
-    
-    #test_arm()
+    if args.object_material == 'all':
+        if args.action == 'touch':
+            go_play_touch_all()
+        elif args.action == 'push':
+            go_play_push_all()
+    else:
+        go_play(args.object_material, args.action, args.floor_material)
     
