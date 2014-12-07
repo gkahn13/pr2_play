@@ -20,13 +20,20 @@ import cv2
 import argparse
 import IPython
 
+from skimage.transform import rotate
+from skimage.feature import local_binary_pattern
+from skimage import data
+from skimage.color import label2rgb, rgb2gray
+#import os
+
+
 from play import all_materials, object_materials, floor_materials
 
 data_folder = '../data/'
 image_folder = '../figs/'
 push_files = ['push_{0}_on_{1}'.format(o, f) for o in object_materials for f in floor_materials]
 
-class AnalyzeData:
+class ExtractFeatureVector:
     def __init__(self, npz_name):
         self.name = npz_name[:-4]
         npzfile = np.load(npz_name)
@@ -46,10 +53,13 @@ class AnalyzeData:
             self.object_material = self.name.split('_')[1]
             self.floor_material = self.name.split('_')[-1]
         
-            self.object_image = sci.misc.imread(data_folder + self.object_material + '.jpg')
+            self.object_img = sci.misc.imread(data_folder + self.object_material + '.jpg')
             self.floor_img = sci.misc.imread(data_folder + self.floor_material + '.jpg')
+            
+            self.object_texture = ImageTexture(self.object_img)
+            self.floor_texture = ImageTexture(self.floor_img)
         else:
-            self.object_image = None
+            self.object_im = None
             self.floor_img = None
             
     ##########################
@@ -98,6 +108,10 @@ class AnalyzeData:
         for col in xrange(self.joint_efforts.shape[1]):
             energy += np.linalg.norm(np.convolve(self.joint_efforts[:,col], [1, -1]))
         return energy
+        
+    @property
+    def texture_similarity(self):
+        return self.object_texture.kl_divergence(self.floor_texture)
                 
         
     def __str__(self):
@@ -111,6 +125,7 @@ class AnalyzeData:
         s += 'Max joint velocity: {0:.3f}\n'.format(self.max_joint_velocity)
         s += 'Max joint effort: {0:.3f}\n'.format(self.max_joint_effort)
         s += 'Joint effort energy: {0:.3f}\n'.format(self.joint_effort_energy)
+        s += 'Object-floor texture similarity: {0:.3f}\n'.format(self.texture_similarity)
         return s
         
     ###################
@@ -159,6 +174,24 @@ class AnalyzeData:
             plt.title('Floor material')
             
         plt.show(block=False)
+        
+class ImageTexture:
+    def __init__(self, img):
+        self.img = rgb2gray(img)
+
+        radius = 3
+        n_points = 8 * radius
+        method = 'uniform'
+        
+        lbp = local_binary_pattern(self.img, n_points, radius, method)
+        
+        n_bins = lbp.max() + 1
+        self.histogram, _ = np.histogram(lbp, normed=True, bins=n_bins, range=(0, n_bins))
+        
+    def kl_divergence(self, other):
+        h, h_o = np.asarray(self.histogram), np.asarray(other.histogram)
+        filt = np.logical_and(h != 0, h_o != 0)
+        return np.sum(h[filt] * np.log2(h[filt] / h_o[filt]))
 
 #########
 # TESTS #
@@ -167,22 +200,37 @@ class AnalyzeData:
 def save_all_display_forces():
     for push_file in push_files:
         try:
-            ad = AnalyzeData(data_folder + push_file + '.npz')
-            f = ad.display_forces(save_file=image_folder + push_file + '.jpg')
+            efd = ExtractFeatureVector(data_folder + push_file + '.npz')
+            f = efd.display_forces(save_file=image_folder + push_file + '.jpg')
             print('Saved image for push_file: {0}'.format(push_file))
             plt.close()
         except:
             pass
         
 def print_push_files():
+    efds = list()
     for push_file in push_files:
         try:
-            ad = AnalyzeData(data_folder + push_file + '.npz')
-            print(push_file)
-            print(str(ad)+'\n')
+            efds.append(ExtractFeatureVector(data_folder + push_file + '.npz'))
         except Exception as e:
             pass
+                        
+    for efd in efds:
+        print(efd.name)
+        print(str(efd) + '\n')
             
+def save_feature_vectors():
+    print('Saving feature vectors...')
+    efds = list()
+    for push_file in push_files:
+        try:
+            efds.append(ExtractFeatureVector(data_folder + push_file + '.npz'))
+            print('{0}'.format(efds[-1].name))
+        except Exception as e:
+            pass
+                        
+    for efd in efds:
+        np.save(efd.name+'.npy', efd.feature_vector)
             
 if __name__ == '__main__':
     rospy.init_node('analyze_data', anonymous=True)
@@ -191,6 +239,7 @@ if __name__ == '__main__':
     parser.add_argument('npz_name')
     parser.add_argument('--save-all-display-forces', action='store_true')
     parser.add_argument('--print-push-files', action='store_true')
+    parser.add_argument('--save-feature-vectors', action='store_true')
 
     args = parser.parse_args(rospy.myargv()[1:])
     
@@ -199,11 +248,14 @@ if __name__ == '__main__':
             save_all_display_forces()
         elif args.print_push_files:
             print_push_files()
+        elif args.save_feature_vectors:
+            save_feature_vectors()
     else:
-        ad = AnalyzeData(data_folder + args.npz_name)
+        efd = ExtractFeatureVector(data_folder + args.npz_name)
         #ad.display_forces()
         #ad.display_materials()
-        print(ad)
+        print(efd)
+        IPython.embed()
         
     
     #print('Press enter to exit')
