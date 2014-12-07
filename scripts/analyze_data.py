@@ -7,8 +7,10 @@ Analyze bag file data
 from collections import defaultdict
 
 import rospy, rosbag, roslib
-roslib.load_manifest('cv_bridge')
-import cv_bridge
+roslib.load_manifest('tfx')
+import tfx
+#roslib.load_manifest('cv_bridge')
+#import cv_bridge
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -20,108 +22,86 @@ import IPython
 from play import all_materials, object_materials, floor_materials
 
 data_folder = '../data/'
-push_files = [data_folder + 'push_{0}_on_{1}'.format(o, f) for o in object_materials for f in floor_materials]
+image_folder = '../figs/'
+push_files = ['push_{0}_on_{1}'.format(o, f) for o in object_materials for f in floor_materials]
 
 class AnalyzeData:
-    def __init__(self, bag_name):
-        bag = rosbag.Bag(bag_name, 'r')
-        self.topics = defaultdict(list)
+    def __init__(self, npz_name):
+        self.name = npz_name[:-4]
+        npzfile = np.load(npz_name)
         
-        for topic, msg, t in bag.read_messages():
-            self.topics[topic].append((t, msg))
-            
-        self.analyze_forces = AnalyzeForces(self.topics['/pressure/l_gripper_motor'])
-        self.analyze_images = AnalyzeImages(self.topics['/l_forearm_cam/image_rect_color/compressed'])
+        self.l_finger_tip = npzfile['l_finger_tip']
+        self.r_finger_tip = npzfile['r_finger_tip']
+        self.t_pressure = npzfile['t_pressure']
         
-    def display_forces(self):
-        self.analyze_forces.display()
+        self.joint_positions = npzfile['joint_positions']
+        self.joint_velocities = npzfile['joint_velocities']
+        self.joint_efforts = npzfile['joint_efforts']
+        self.t_joint = npzfile['t_joint']
         
+        self.poses = [tfx.pose(p) for p in npzfile['poses']]
         
-    def display_images(self):
-        self.analyze_images.display()
+    ###################
+    # display methods #
+    ###################
         
-class AnalyzeForces:
-    def __init__(self, force_msgs):
-        """
-        :param force_msgs: list of (time, msg)
-        """
-        start_time = force_msgs[0][0].to_sec()
-        start_forces_l = np.array(force_msgs[0][1].l_finger_tip)
-        start_forces_r = np.array(force_msgs[0][1].r_finger_tip)
+    def display_forces(self, save_file=None):
+        N = self.l_finger_tip.shape[1]
         
-        N = self.N = len(start_forces_l)
-        T = self.T = len(force_msgs)
-        
-        self.times = [f[0].to_sec() - start_time for f in force_msgs]
-        # each column is a time slice
-        self.forces_l = np.zeros((N, T))
-        self.forces_r = np.zeros((N, T))
-        
-        for t in xrange(T):
-            self.forces_l[:,t] = force_msgs[t][1].l_finger_tip - start_forces_l
-            self.forces_r[:,t] = force_msgs[t][1].r_finger_tip - start_forces_r
-            
-    def display(self):
-        f_left, axes_left = plt.subplots(self.N, sharex=True, sharey=True)
-        f_right, axes_right = plt.subplots(self.N, sharex=True, sharey=True)
+        f, axes = plt.subplots(N, 2, sharex=True, sharey=True)
+        axes_left = axes[:,0]
+        axes_right = axes[:,1]
 
         axes_left[0].set_title('Left finger')
         axes_right[0].set_title('Right finger')
     
-        for i in xrange(self.N):
-            axes_left[i].plot(self.times, self.forces_l[i,:], 'r')
-            axes_right[i].plot(self.times, self.forces_r[i,:], 'b')
+        for i in xrange(N):
+            axes_left[i].plot(self.t_pressure, self.l_finger_tip[:,i], 'r')
+            axes_right[i].plot(self.t_pressure, self.r_finger_tip[:,i], 'b')
             
-        f_left.subplots_adjust(hspace=0)
-        f_right.subplots_adjust(hspace=0)
+        f.subplots_adjust(hspace=0)
+        f.suptitle(self.name)
             
         plt.show(block=False)
         
-class AnalyzeImages:
-    def __init__(self, image_msgs):
-        """
-        :param image_msgs: list of (time, msg)
-        """
-        cv = cv_bridge.CvBridge()
+        if save_file is not None:
+            plt.savefig(save_file)
         
-        self.times = [msg[0].to_sec() for msg in image_msgs]
-        #self.ims = [cv.imgmsg_to_cv(msg[1]) for msg in image_msgs]
-        self.ims = [cv2.imdecode(np.fromstring(msg[1].data, np.uint8), cv2.CV_LOAD_IMAGE_COLOR) for msg in image_msgs]
-        
-        self.T = len(self.ims)
+        return f
 
-    def display(self, T=5):
-        T = min(T, self.T)
-        
-        step = int(self.T/float(T))
-        plt.subplot(T, 1, 1)
-        ims_sub = self.ims[::step]
-        for t, im in enumerate(ims_sub):
-            plt.subplot(len(ims_sub), 1, t+1)
-            if t == 0:
-                plt.title('{0:.2f} seconds between images'.format(self.times[step] - self.times[0]))
-            plt.imshow(im)
-            
-        
-        plt.show(block=False)
-        
-        
+
 #########
 # TESTS #
 #########
+
+def save_all_display_forces():
+    for push_file in push_files:
+        try:
+            ad = AnalyzeData(data_folder + push_file + '.npz')
+            f = ad.display_forces(save_file=image_folder + push_file + '.jpg')
+            print('Saved image for push_file: {0}'.format(push_file))
+            plt.close()
+        except:
+            pass
+        
 
 if __name__ == '__main__':
     rospy.init_node('analyze_data', anonymous=True)
     
     parser = argparse.ArgumentParser()
-    parser.add_argument('bag_name')
+    parser.add_argument('npz_name')
+    parser.add_argument('--save-all-display-forces', action='store_true')
 
     args = parser.parse_args(rospy.myargv()[1:])
     
-    ad = AnalyzeData('../data/' + args.bag_name)
-    
-    ad.display_forces()
-    #ad.display_images()
+    if args.npz_name == 'all':
+        if args.save_all_display_forces:
+            save_all_display_forces()
+    else:
+        ad = AnalyzeData(data_folder + args.npz_name)
+        ad.display_forces()
     
     print('Press enter to exit')
     raw_input()
+    
+

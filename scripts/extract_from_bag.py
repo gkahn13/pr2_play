@@ -7,12 +7,8 @@ Extract info from bag files
 from collections import defaultdict
 
 import rospy, rosbag, roslib
-roslib.load_manifest('cv_bridge')
-import cv_bridge
 
 import numpy as np
-import matplotlib.pyplot as plt
-import cv2
 
 import argparse, os
 import IPython
@@ -130,11 +126,6 @@ def extract_all():
 #########
 # TESTS #
 #########
-
-def try_load(npz_name):
-    npzfile = np.load(npz_name)
-    IPython.embed()
-    
 
 if __name__ == '__main__':
     rospy.init_node('analyze_data', anonymous=True)
