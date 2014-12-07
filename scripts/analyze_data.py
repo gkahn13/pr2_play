@@ -12,6 +12,7 @@ import tfx
 #roslib.load_manifest('cv_bridge')
 #import cv_bridge
 
+import scipy as sci
 import numpy as np
 import matplotlib.pyplot as plt
 import cv2
@@ -41,11 +42,78 @@ class AnalyzeData:
         
         self.poses = [tfx.pose(p) for p in npzfile['poses']]
         
+        if 'push' in self.name:
+            self.obj_img = sci.misc.imread(data_folder + self.name.split('_')[1] + '.jpg')
+            self.floor_img = sci.misc.imread(data_folder + self.name.split('_')[-1] + '.jpg')
+        else:
+            self.obj_img = None
+            self.floor_img = None
+            
+    ##########################
+    # feature vector methods #
+    ##########################
+    
+    @property
+    def feature_vector(self):
+        """
+        Generate feature vector from data
+        """
+        pass
+        
+    @property
+    def max_finger_tip_forces(self):
+        return self.l_finger_tip.max(), self.r_finger_tip.max()
+
+    @property
+    def finger_tip_forces_energy(self):
+        energy = 0
+        for a in [self.l_finger_tip, self.r_finger_tip]:
+            for col in xrange(a.shape[1]):
+                energy += np.linalg.norm(np.convolve(a[:,col], [1,-1]))
+        return energy
+
+    @property
+    def distance_traveled(self):
+        return sum([self.poses[i].position.distance(self.poses[i+1].position) for i in xrange(len(self.poses)-1)])
+
+    @property        
+    def max_joint_velocity(self):
+        return self.joint_velocities.max()
+    
+    @property
+    def max_joint_effort(self):
+        return self.joint_efforts.max()
+        
+    @property
+    def joint_effort_energy(self):
+        energy = 0
+        for col in xrange(self.joint_efforts.shape[1]):
+            energy += np.linalg.norm(np.convolve(self.joint_efforts[:,col], [1, -1]))
+        return energy
+                
+        
+    def __str__(self):
+        """
+        Print relevant statistics, for guidance
+        """
+        s = ''
+        s += 'Max finger tip forces: {0}\n'.format(self.max_finger_tip_forces)
+        s += 'Finger tip forces energy: {0:.3f}\n'.format(self.finger_tip_forces_energy)
+        s += 'Distance traveled: {0:.3f}\n'.format(self.distance_traveled)
+        s += 'Max joint velocity: {0:.3f}\n'.format(self.max_joint_velocity)
+        s += 'Max joint effort: {0:.3f}\n'.format(self.max_joint_effort)
+        s += 'Joint effort energy: {0:.3f}\n'.format(self.joint_effort_energy)
+        return s
+        
     ###################
     # display methods #
     ###################
         
     def display_forces(self, save_file=None):
+        """
+        Display fingertip pressure forces
+        :param file to save figure to
+        """
         N = self.l_finger_tip.shape[1]
         
         f, axes = plt.subplots(N, 2, sharex=True, sharey=True)
@@ -69,6 +137,20 @@ class AnalyzeData:
         
         return f
 
+    def display_materials(self):
+        """
+        Display images of materials
+        """
+        if self.obj_img is not None:
+            plt.figure(1)
+            plt.imshow(self.obj_img)
+            plt.title('Object material')
+        if self.floor_img is not None:
+            plt.figure(2)
+            plt.imshow(self.floor_img)
+            plt.title('Floor material')
+            
+        plt.show(block=False)
 
 #########
 # TESTS #
@@ -84,24 +166,38 @@ def save_all_display_forces():
         except:
             pass
         
-
+def print_push_files():
+    for push_file in push_files:
+        try:
+            ad = AnalyzeData(data_folder + push_file + '.npz')
+            print(push_file)
+            print(str(ad)+'\n')
+        except Exception as e:
+            pass
+            
 if __name__ == '__main__':
     rospy.init_node('analyze_data', anonymous=True)
     
     parser = argparse.ArgumentParser()
     parser.add_argument('npz_name')
     parser.add_argument('--save-all-display-forces', action='store_true')
+    parser.add_argument('--print-push-files', action='store_true')
 
     args = parser.parse_args(rospy.myargv()[1:])
     
     if args.npz_name == 'all':
         if args.save_all_display_forces:
             save_all_display_forces()
+        elif args.print_push_files:
+            print_push_files()
     else:
         ad = AnalyzeData(data_folder + args.npz_name)
-        ad.display_forces()
+        #ad.display_forces()
+        #ad.display_materials()
+        print(ad)
+        
     
-    print('Press enter to exit')
-    raw_input()
+    #print('Press enter to exit')
+    #raw_input()
     
 
