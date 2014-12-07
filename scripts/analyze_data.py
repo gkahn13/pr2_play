@@ -17,6 +17,11 @@ import cv2
 import argparse
 import IPython
 
+from play import all_materials, object_materials, floor_materials
+
+data_folder = '../data/'
+push_files = [data_folder + 'push_{0}_on_{1}'.format(o, f) for o in object_materials for f in floor_materials]
+
 class AnalyzeData:
     def __init__(self, bag_name):
         bag = rosbag.Bag(bag_name, 'r')
