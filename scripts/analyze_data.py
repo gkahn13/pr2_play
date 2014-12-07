@@ -43,10 +43,13 @@ class AnalyzeData:
         self.poses = [tfx.pose(p) for p in npzfile['poses']]
         
         if 'push' in self.name:
-            self.obj_img = sci.misc.imread(data_folder + self.name.split('_')[1] + '.jpg')
-            self.floor_img = sci.misc.imread(data_folder + self.name.split('_')[-1] + '.jpg')
+            self.object_material = self.name.split('_')[1]
+            self.floor_material = self.name.split('_')[-1]
+        
+            self.object_image = sci.misc.imread(data_folder + self.object_material + '.jpg')
+            self.floor_img = sci.misc.imread(data_folder + self.floor_material + '.jpg')
         else:
-            self.obj_img = None
+            self.object_image = None
             self.floor_img = None
             
     ##########################
@@ -58,7 +61,12 @@ class AnalyzeData:
         """
         Generate feature vector from data
         """
-        pass
+        return np.array([self.max_finger_tip_forces,
+                        self.finger_tip_forces_energy,
+                        self.distance_traveled,
+                        self.max_joint_velocity,
+                        self.max_joint_effort,
+                        self.joint_effort_energy])
         
     @property
     def max_finger_tip_forces(self):
@@ -141,9 +149,9 @@ class AnalyzeData:
         """
         Display images of materials
         """
-        if self.obj_img is not None:
+        if self.object_image is not None:
             plt.figure(1)
-            plt.imshow(self.obj_img)
+            plt.imshow(self.object_image)
             plt.title('Object material')
         if self.floor_img is not None:
             plt.figure(2)
@@ -174,6 +182,7 @@ def print_push_files():
             print(str(ad)+'\n')
         except Exception as e:
             pass
+            
             
 if __name__ == '__main__':
     rospy.init_node('analyze_data', anonymous=True)
