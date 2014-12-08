@@ -16,6 +16,7 @@ import scipy as sci
 import numpy as np
 import matplotlib.pyplot as plt
 import cv2
+from scipy.ndimage.filters import gaussian_filter1d
 
 import argparse
 import IPython
@@ -71,13 +72,19 @@ class ExtractFeatureVector:
         """
         Generate feature vector from data
         """
-        return np.array(self.max_finger_tip_forces +
-                        [self.finger_tip_forces_energy,
-                        self.distance_traveled,
-                        self.max_joint_velocity,
-                        self.max_joint_effort,
-                        self.joint_effort_energy])
+        # energy is no good! depends on time of first contact
         
+        v = list()
+        v += self.max_finger_tip_forces # good
+        #v.append(self.finger_tip_forces_energy)
+        #v.append(self.max_forces_derivative)
+        #v.append(self.distance_traveled)
+        #v.append(self.max_joint_velocity)
+        v.append(self.max_joint_effort) # good
+        #v.append(self.joint_effort_energy)
+        #v.append(self.texture_similarity)
+        return np.array(v)
+                
     @property
     def max_finger_tip_forces(self):
         return [self.l_finger_tip.max(), self.r_finger_tip.max()]
@@ -89,6 +96,33 @@ class ExtractFeatureVector:
             for col in xrange(a.shape[1]):
                 energy += np.linalg.norm(np.convolve(a[:,col], [1,-1]))
         return energy
+
+    @property
+    def max_forces_derivative(self):
+        d_max = -np.inf
+        for a in [self.l_finger_tip, self.r_finger_tip]:
+            for col in xrange(a.shape[1]):
+                #d_max = max(d_max, np.convolve(a[:,col], [1,-1]).max())
+                d_max = max(d_max, (a[:,col] - gaussian_filter1d(a[:,col],1)).max())
+        return d_max
+
+    @property
+    def forces_entropy(self):
+        """
+        Histogram the forces, then compute the entropy
+        """
+        finger_bins = [np.linspace(0, m, 10) for m in self.max_finger_tip_forces]
+        
+        entropy = 0
+        for a, bins in zip([self.l_finger_tip, self.r_finger_tip], finger_bins):
+            for col in xrange(a.shape[1]):
+                h, _ = np.histogram(a[:,col], normed=False, bins=bins)
+                h = np.array(h, dtype=float)
+                h /= float(np.sum(h))
+                filt = h != 0
+                entropy += -np.sum(h[filt] * np.log2(h[filt]))
+        return entropy
+        
 
     @property
     def distance_traveled(self):
@@ -119,13 +153,15 @@ class ExtractFeatureVector:
         Print relevant statistics, for guidance
         """
         s = ''
-        s += 'Max finger tip forces: {0}\n'.format(self.max_finger_tip_forces)
-        s += 'Finger tip forces energy: {0:.3f}\n'.format(self.finger_tip_forces_energy)
-        s += 'Distance traveled: {0:.3f}\n'.format(self.distance_traveled)
-        s += 'Max joint velocity: {0:.3f}\n'.format(self.max_joint_velocity)
-        s += 'Max joint effort: {0:.3f}\n'.format(self.max_joint_effort)
-        s += 'Joint effort energy: {0:.3f}\n'.format(self.joint_effort_energy)
-        s += 'Object-floor texture similarity: {0:.3f}\n'.format(self.texture_similarity)
+        #s += 'Max finger tip forces: {0}\n'.format(self.max_finger_tip_forces)
+        #s += 'Finger tip forces energy: {0:.3f}\n'.format(self.finger_tip_forces_energy)
+        #s += 'Max forces derivative: {0:.3f}\n'.format(self.max_forces_derivative)
+        s += 'Foces entropy: {0:.3f}\n'.format(self.forces_entropy)
+        #s += 'Distance traveled: {0:.3f}\n'.format(self.distance_traveled)
+        #s += 'Max joint velocity: {0:.3f}\n'.format(self.max_joint_velocity)
+        #s += 'Max joint effort: {0:.3f}\n'.format(self.max_joint_effort)
+        #s += 'Joint effort energy: {0:.3f}\n'.format(self.joint_effort_energy)
+        #s += 'Object-floor texture similarity: {0:.3f}\n'.format(self.texture_similarity)
         return s
         
     ###################
@@ -193,6 +229,8 @@ class ImageTexture:
         filt = np.logical_and(h != 0, h_o != 0)
         return np.sum(h[filt] * np.log2(h[filt] / h_o[filt]))
 
+
+
 #########
 # TESTS #
 #########
@@ -209,7 +247,7 @@ def save_all_display_forces():
         
 def print_push_files():
     efds = list()
-    for push_file in push_files:
+    for push_file in sorted(sorted(push_files), key=lambda x : x.split('_')[-1]):
         try:
             efds.append(ExtractFeatureVector(data_folder + push_file + '.npz'))
         except Exception as e:
@@ -233,15 +271,13 @@ def save_feature_vectors():
         np.save(efd.name+'.npy', efd.feature_vector)
             
 if __name__ == '__main__':
-    rospy.init_node('analyze_data', anonymous=True)
-    
     parser = argparse.ArgumentParser()
     parser.add_argument('npz_name')
     parser.add_argument('--save-all-display-forces', action='store_true')
     parser.add_argument('--print-push-files', action='store_true')
     parser.add_argument('--save-feature-vectors', action='store_true')
 
-    args = parser.parse_args(rospy.myargv()[1:])
+    args = parser.parse_args()
     
     if args.npz_name == 'all':
         if args.save_all_display_forces:
@@ -252,8 +288,8 @@ if __name__ == '__main__':
             save_feature_vectors()
     else:
         efd = ExtractFeatureVector(data_folder + args.npz_name)
-        #ad.display_forces()
-        #ad.display_materials()
+        efd.display_forces()
+        #efd.display_materials()
         print(efd)
         IPython.embed()
         

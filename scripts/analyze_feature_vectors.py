@@ -20,7 +20,7 @@ class AnalyzeFeatureVectors:
         """
         :param file_names: list of .npy containing feature vectors
         """
-        self.file_names = [f.replace(data_folder,'').replace('.npy','') for f in file_paths]
+        self.file_names = [f.replace('push_','').replace(data_folder,'').replace('.npy','') for f in file_paths]
         names_and_files = zip(self.file_names, file_paths)
         self.fvs = { n : np.load(f) for n, f in names_and_files }
         
@@ -51,32 +51,45 @@ class AnalyzeFeatureVectors:
                 D[i,j] = np.sqrt((v_i - v_j).T.dot(inv_cov).dot(v_i - v_j))
                 
         return D
+        
+    @property
+    def similarity_matrix(self):
+        D = self.distance_matrix
+        return D.max() - D
             
     ###################
     # display methods #
     ###################
     
-    def display_distance_matrix(self):
-        D = self.distance_matrix
-        N = len(D)
-        
-        # similarity matrix
-        S = D.max() - D
-        
+    def display_similarity_matrix(self):
+        N = len(self.file_names)
+
         plt.figure()
-        plt.pcolor(S)
+        plt.pcolor(self.similarity_matrix)
         plt.colorbar()
         plt.yticks(np.arange(0.5,N+0.5), self.file_names)
         plt.xticks(np.arange(0.5,N+0.5), self.file_names, rotation='vertical')
+        plt.title('Similarity matrix')
         plt.show(block=False)
+        
+    #################
+    # print methods #
+    #################
+    
+    def print_most_similar(self):
+        S = self.similarity_matrix
+        np.fill_diagonal(S, 0)
+        for i, file_name in enumerate(self.file_names):
+            j = S[i,:].argmax()
+            print('{0:<15} : {1}'.format(file_name, self.file_names[j]))
         
 if __name__ == '__main__':
     file_names = [data_folder+f for f in os.listdir(data_folder) if '.npy' in f]
     file_names = sorted(sorted(file_names), key=lambda x : x.split('_')[-1])
     afv = AnalyzeFeatureVectors(file_names)
     
-    D = afv.distance_matrix
-    afv.display_distance_matrix()
+    afv.display_similarity_matrix()
+    afv.print_most_similar()
     
     print('Press enter to exit')
     raw_input()
