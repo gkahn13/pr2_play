@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-Analyze bag file data
+Extract feature vectors from data
 """
 
 from collections import defaultdict
@@ -71,8 +71,8 @@ class ExtractFeatureVector:
         """
         Generate feature vector from data
         """
-        return np.array([self.max_finger_tip_forces,
-                        self.finger_tip_forces_energy,
+        return np.array(self.max_finger_tip_forces +
+                        [self.finger_tip_forces_energy,
                         self.distance_traveled,
                         self.max_joint_velocity,
                         self.max_joint_effort,
@@ -80,7 +80,7 @@ class ExtractFeatureVector:
         
     @property
     def max_finger_tip_forces(self):
-        return self.l_finger_tip.max(), self.r_finger_tip.max()
+        return [self.l_finger_tip.max(), self.r_finger_tip.max()]
 
     @property
     def finger_tip_forces_energy(self):
