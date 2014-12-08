@@ -6,15 +6,18 @@ Saves specifics topics to bag file
 
 import rospy, roslib, rosbag
 roslib.load_manifest('pr2_msgs')
+roslib.load_manifest('audio_common_msgs')
 
 from sensor_msgs.msg import JointState, Image, CompressedImage
 from pr2_msgs.msg import PressureState
+from audio_common_msgs.msg import AudioData
 
 import threading
 
 PR2_TOPICS_AND_TYPES = [('/joint_states', JointState),
                         ('/pressure/l_gripper_motor', PressureState),
-                        ('/l_forearm_cam/image_rect_color/compressed', CompressedImage)]
+                        ('/l_forearm_cam/image_rect_color/compressed', CompressedImage),
+                        ('/audio', AudioData)]
 
 class SaveData:
     def __init__(self, bag_name, topics_and_types):

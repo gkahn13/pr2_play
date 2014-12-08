@@ -32,7 +32,8 @@ floor_materials = big_cloths + hards
 
 class Play:
     def __init__(self, object_material, floor_material='None', pressure_threshold=10000):
-        self.arm = arm.Arm('left', default_speed=0.08)
+        self.larm = arm.Arm('left', default_speed=0.08)
+        self.rarm = arm.Arm('right', default_speed=0.08)
         
         self.pressure_sub = rospy.Subscriber('/pressure/l_gripper_motor', PressureState, self._pressure_callback)
         self.pressure_threshold = pressure_threshold
@@ -45,8 +46,6 @@ class Play:
         
         self.last_forces_l = self.last_forces_r = None
         self.zero_forces_l = self.zero_forces_r = None
-        
-        self.arm.set_gripper(0.75*self.arm.min_grasp + 0.25*self.arm.max_grasp)
     
     def _pressure_callback(self, msg):
         self.last_forces_l = np.array(msg.l_finger_tip)
@@ -62,10 +61,37 @@ class Play:
     def is_pressure_exceeded(self):
         return (self.last_forces_l - self.zero_forces_l).max() > self.pressure_threshold or \
             (self.last_forces_r - self.zero_forces_r).max() > self.pressure_threshold
+            
+    def sound(self):
+        """
+        Position the gripper (grasping the rod) parallel to ground and move down
+        BE SURE TO HAVE LAUNCH roslaunch audio_capture capture.launch
+        """
+        iters = 3 # number of times to hit
+        home_pose = tfx.pose([0.48, -0.67, 0.85], tfx.tb_angles(0,0,0), frame='base_link')
+        home_joints = [-1.49, 0.276231, -1.8, -1.43, 1.33627,-0.254, -25.1481]
+        delta_pos = [0, 0, -0.10]
+        speed = 0.25
+        file = '../data/sound_{0}.bag'.format(self.object_material)
+        
+        print('Recording to file: {0}'.format(file))
+        sd = save_data.SaveData(file, save_data.PR2_TOPICS_AND_TYPES)
+        
+        print('Going to home joints')
+        self.rarm.go_to_joints(home_joints)
+        
+        print('Starting recording and moving by {0} for {1} times'.format(delta_pos, iters))
+        sd.start()
+        for _ in xrange(iters):
+            self.rarm.go_to_pose(home_pose + delta_pos, speed=speed, block=True)
+            self.rarm.go_to_joints(home_joints)
+        sd.stop()
+        
+        print('Stopping recording. Going to home joints')
     
     def touch(self):
         """
-        Position the arm facing downwards and move down
+        Position the gripper facing downwards and move down
         """
         home_pose = tfx.pose(tfx.pose([0.54, 0.2, 0.85], tfx.tb_angles(0,90,0), frame='base_link'))
         home_joints = [0.57, 0.1233, 1.288, -1.58564, 1.695, -1.85322, 14.727]
@@ -88,21 +114,22 @@ class Play:
         self.execute_experiment(file, home_joints, home_pose, delta_pos, speed=speed)
         
     def execute_experiment(self, file, home_joints, home_pose, delta_pos, speed=0.02):
+        self.larm.set_gripper(0.75*self.larm.min_grasp + 0.25*self.larm.max_grasp)
         print('Recording to file: {0}'.format(file))
         sd = save_data.SaveData(file, save_data.PR2_TOPICS_AND_TYPES)
         
         print('Going to home joints')
-        self.arm.go_to_joints(home_joints)
+        self.larm.go_to_joints(home_joints)
         self.zero_pressure_sensors()
         
         print('Starting recording and moving by {0}'.format(delta_pos))
         sd.start()
-        duration = self.arm.go_to_pose(home_pose + delta_pos, speed=speed, block=False)
+        duration = self.larm.go_to_pose(home_pose + delta_pos, speed=speed, block=False)
         self.wait_action(duration)        
         sd.stop()
         
         print('Stopping recording. Going to home joints')
-        self.arm.go_to_joints(home_joints)
+        self.larm.go_to_joints(home_joints)
         
         
     def wait_action(self, duration):
@@ -122,6 +149,16 @@ class Play:
 # TESTS #
 #########
 
+def test_arm():
+    a = arm.Arm('right')
+    
+    p = a.get_pose()
+    print('Pose : {0}'.format(p))
+    home_pose = tfx.pose([0.48, -0.67, 0.85], tfx.tb_angles(0,0,0), frame='base_link')
+    a.go_to_pose(home_pose)
+    
+    IPython.embed()
+
 def test_home_pose():
     a = arm.Arm('left')
     
@@ -130,6 +167,19 @@ def test_home_pose():
     a.go_to_pose(home_pose)
     
     IPython.embed()
+    
+def go_play_sound_all():
+    play = Play('Does not matter', 'sound')
+    for object_material in all_materials:
+        if rospy.is_shutdown():
+            break
+        if object_material[0] != 'r':
+            continue
+        play.reset(object_material)
+        print('Press enter to get sound of: {0}'.format(object_material))
+        raw_input()
+        print('(sound...)')
+        play.sound()
 
 def go_play_touch_all():
     play = Play('Does not matter', 'touch')
@@ -163,6 +213,9 @@ def go_play(object_material, action, floor_material='None'):
     elif action == 'push':
         print('Doing action ({0}) with material ({1}) on material ({2})'.format(action, object_material, floor_material))
         play.push()
+    elif action == 'sound':
+        print('Doing action ({0}) with material ({1})'.format(action, object_material))
+        play.sound()
 
 if __name__ == '__main__':
     rospy.init_node('play', anonymous=True)
@@ -170,7 +223,7 @@ if __name__ == '__main__':
     
     parser = argparse.ArgumentParser()
     parser.add_argument('object_material')
-    parser.add_argument('action', choices=('touch','push'))
+    parser.add_argument('action', choices=('touch','push','sound'))
     parser.add_argument('floor_material', nargs='?', default='None')
     
     args = parser.parse_args(rospy.myargv()[1:])
@@ -179,6 +232,8 @@ if __name__ == '__main__':
             go_play_touch_all()
         elif args.action == 'push':
             go_play_push_all()
+        elif args.action == 'sound':
+            go_play_sound_all()
     else:
         go_play(args.object_material, args.action, args.floor_material)
     

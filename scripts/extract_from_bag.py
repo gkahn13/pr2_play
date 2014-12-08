@@ -5,12 +5,13 @@ Extract info from bag files
 """
 
 from collections import defaultdict
+import itertools
 
 import rospy, rosbag, roslib
 
 import numpy as np
 
-import argparse, os
+import argparse, os, binascii
 import IPython
 
 from pr2_sim import arm
@@ -61,8 +62,13 @@ joint_names =    ['fl_caster_rotation_joint',
                  'l_gripper_l_finger_tip_joint']
 
 
-def extract_info_from_bag(bag_name, pressure_topic='/pressure/l_gripper_motor', joint_topic='/joint_states', a=None):
-    bag = rosbag.Bag(bag_name, 'r')
+def extract_info_from_bag(bag_path, \
+                          pressure_topic='/pressure/l_gripper_motor', \
+                          joint_topic='/joint_states', \
+                          audio_topic='/audio', \
+                          a=None):
+    bag_name = bag_path.replace('.bag','')
+    bag = rosbag.Bag(bag_path, 'r')
     topics = defaultdict(list)
     
     for topic, msg, t in bag.read_messages():
@@ -106,13 +112,24 @@ def extract_info_from_bag(bag_name, pressure_topic='/pressure/l_gripper_motor', 
     for i, j in enumerate(joint_positions):
         a.set_joints(j)
         poses[i,:,:] = a.get_pose().matrix
+        
+    ###############################
+    # extract audio info (if any) #
+    ###############################
+    audio_file = open(bag_name+'.mp3', 'w')
+    for a in topics[audio_topic]:
+        audio_file.write(''.join(a.data))
+    audio_file.close()
+    
+    audio = np.array([int(binascii.hexlify(d), 16) for m in topics[audio_topic] for d in m.data])
+    
 
     ################
     # save to .npz #
     ################
-    np.savez(bag_name[:-4], l_finger_tip=l_finger_tip, r_finger_tip=r_finger_tip, t_pressure=t_pressure, \
+    np.savez(bag_name, l_finger_tip=l_finger_tip, r_finger_tip=r_finger_tip, t_pressure=t_pressure, \
         joint_positions=joint_positions, joint_velocities=joint_velocities, joint_efforts=joint_efforts, t_joint=t_joint, \
-        poses=poses)
+        poses=poses, audio=audio)
     
 def extract_all():
     a = arm.Arm('left', view=False)

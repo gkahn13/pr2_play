@@ -59,6 +59,9 @@ class ExtractFeatureVector:
             
             self.object_texture = ImageTexture(self.object_img)
             self.floor_texture = ImageTexture(self.floor_img)
+        elif 'sound' in self.name:
+            self.object_material = self.name.split('_')[1]
+            self.audio = npzfile['audio']
         else:
             self.object_im = None
             self.floor_img = None
@@ -163,6 +166,23 @@ class ExtractFeatureVector:
         #s += 'Joint effort energy: {0:.3f}\n'.format(self.joint_effort_energy)
         #s += 'Object-floor texture similarity: {0:.3f}\n'.format(self.texture_similarity)
         return s
+        
+    #################
+    # sound methods #
+    #################
+    def process_sound(self):
+        N = len(self.audio)
+        
+        audio_fft = np.abs(np.fft.fft(self.audio))/float(N)
+        freqs = np.fft.fftfreq(N, 1./44100.)
+        
+        audio_fft = audio_fft[:np.floor(N/2)]
+        freqs = freqs[:np.floor(N/2)]
+        
+        plt.plot(freqs, audio_fft)
+        plt.show(block=False)
+        
+        IPython.embed()
         
     ###################
     # display methods #
@@ -288,10 +308,11 @@ if __name__ == '__main__':
             save_feature_vectors()
     else:
         efd = ExtractFeatureVector(data_folder + args.npz_name)
-        efd.display_forces()
+        #efd.display_forces()
         #efd.display_materials()
-        print(efd)
-        IPython.embed()
+        #print(efd)
+        efd.process_sound()
+        #IPython.embed()
         
     
     #print('Press enter to exit')
