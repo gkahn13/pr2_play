@@ -27,7 +27,7 @@ small_cloths = ['sc{0}'.format(i) for i in xrange(1,8)]
 """ Name lists used for 'all' Play tests """
 all_materials = big_cloths + hards + rugs + small_cloths
 object_materials = small_cloths + rugs
-floor_materials = big_cloths + hards
+floor_materials = hards + big_cloths
 
 
 class Play:
@@ -74,21 +74,20 @@ class Play:
         speed = 0.25
         file = '../data/sound_{0}.bag'.format(self.object_material)
         
-        print('Recording to file: {0}'.format(file))
-        sd = save_data.SaveData(file, save_data.PR2_TOPICS_AND_TYPES)
+        #print('Recording to file: {0}'.format(file))
+        #sd = save_data.SaveData(file, save_data.PR2_TOPICS_AND_TYPES)
         
         print('Going to home joints')
         self.rarm.go_to_joints(home_joints)
         
         print('Starting recording and moving by {0} for {1} times'.format(delta_pos, iters))
-        sd.start()
+        #sd.start()
         for _ in xrange(iters):
             self.rarm.go_to_pose(home_pose + delta_pos, speed=speed, block=True)
             self.rarm.go_to_joints(home_joints)
-        sd.stop()
+        #sd.stop()
         
-        print('Stopping recording. Going to home joints')
-    
+        
     def touch(self):
         """
         Position the gripper facing downwards and move down
@@ -164,7 +163,8 @@ def test_home_pose():
     
     # push home_pose
     home_pose = tfx.pose([0.54, 0.2, 0.71], tfx.tb_angles(-90,0,0), frame='base_link')
-    a.go_to_pose(home_pose)
+    home_joints = [0.6857, 0.31154, 2.21, -1.062444, -0.33257,-1.212881, -0.81091]
+    a.go_to_joints(home_joints)
     
     IPython.embed()
     
