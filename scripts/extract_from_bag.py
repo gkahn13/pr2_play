@@ -62,21 +62,17 @@ joint_names =    ['fl_caster_rotation_joint',
                  'l_gripper_l_finger_tip_joint']
 
 
-def extract_info_from_bag(bag_path, \
+def extract_info_from_bag(bag_path, a, \
                           pressure_topic='/pressure/l_gripper_motor', \
                           joint_topic='/joint_states', \
-                          audio_topic='/audio', \
-                          a=None):
+                          audio_topic='/audio'):
     bag_name = bag_path.replace('.bag','')
     bag = rosbag.Bag(bag_path, 'r')
     topics = defaultdict(list)
     
     for topic, msg, t in bag.read_messages():
         topics[topic].append(msg)
-        
-    if a is None:
-        a = arm.Arm('left', view=False)
-        
+                
     #########################
     # extract pressure info #
     #########################
@@ -116,12 +112,15 @@ def extract_info_from_bag(bag_path, \
     ###############################
     # extract audio info (if any) #
     ###############################
-    audio_file = open(bag_name+'.mp3', 'w')
-    for a in topics[audio_topic]:
-        audio_file.write(''.join(a.data))
-    audio_file.close()
-    
     audio = np.array([int(binascii.hexlify(d), 16) for m in topics[audio_topic] for d in m.data])
+
+    if len(audio) > 0:
+        audio_file = open(bag_name+'.mp3', 'w')
+        for a in topics[audio_topic]:
+            audio_file.write(''.join(a.data))
+        audio_file.close()
+    
+
     
 
     ################
@@ -132,13 +131,16 @@ def extract_info_from_bag(bag_path, \
         poses=poses, audio=audio)
     
 def extract_all():
-    a = arm.Arm('left', view=False)
+    larm = arm.Arm('left', view=False)
+    rarm = arm.Arm('right', view=False)
     
     for f in os.listdir(data_folder):
         f = data_folder + f
         if f.endswith('.bag'):
             print('Extracting info from: {0}'.format(f))
-            extract_info_from_bag(f, a=a)
+
+            extract_info_from_bag(f, larm if 'push' in f else rarm)
+            
         
 #########
 # TESTS #
@@ -155,7 +157,7 @@ if __name__ == '__main__':
     if args.bag_name == 'all':
         extract_all()
     else:
-        extract_info_from_bag(data_folder + args.bag_name)
+        extract_info_from_bag(data_folder + args.bag_name, arm.Arm('left', view=False))
     
     print('Press enter to exit')
     raw_input()

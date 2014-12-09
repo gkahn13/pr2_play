@@ -74,18 +74,18 @@ class Play:
         speed = 0.25
         file = '../data/sound_{0}.bag'.format(self.object_material)
         
-        #print('Recording to file: {0}'.format(file))
-        #sd = save_data.SaveData(file, save_data.PR2_TOPICS_AND_TYPES)
+        print('Recording to file: {0}'.format(file))
+        sd = save_data.SaveData(file, save_data.PR2_TOPICS_AND_TYPES)
         
         print('Going to home joints')
         self.rarm.go_to_joints(home_joints)
         
         print('Starting recording and moving by {0} for {1} times'.format(delta_pos, iters))
-        #sd.start()
+        sd.start()
         for _ in xrange(iters):
             self.rarm.go_to_pose(home_pose + delta_pos, speed=speed, block=True)
             self.rarm.go_to_joints(home_joints)
-        #sd.stop()
+        sd.stop()
         
         
     def touch(self):

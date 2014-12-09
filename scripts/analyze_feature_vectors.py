@@ -84,7 +84,7 @@ class AnalyzeFeatureVectors:
             print('{0:<15} : {1}'.format(file_name, self.file_names[j]))
         
 if __name__ == '__main__':
-    file_names = [data_folder+f for f in os.listdir(data_folder) if '.npy' in f]
+    file_names = [data_folder+f for f in os.listdir(data_folder) if '.npy' in f and 'push' in f]
     file_names = sorted(sorted(file_names), key=lambda x : x.split('_')[-1])
     afv = AnalyzeFeatureVectors(file_names)
     

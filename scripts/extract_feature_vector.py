@@ -234,7 +234,9 @@ class ExtractFeatureVector:
 class ImageTexture:
     def __init__(self, img):
         self.img = rgb2gray(img)
-
+        
+    @property
+    def histogram(self):
         radius = 3
         n_points = 8 * radius
         method = 'uniform'
@@ -242,7 +244,9 @@ class ImageTexture:
         lbp = local_binary_pattern(self.img, n_points, radius, method)
         
         n_bins = lbp.max() + 1
-        self.histogram, _ = np.histogram(lbp, normed=True, bins=n_bins, range=(0, n_bins))
+        histogram, _ = np.histogram(lbp, normed=True, bins=n_bins, range=(0, n_bins))
+        return histogram
+        
         
     def kl_divergence(self, other):
         h, h_o = np.asarray(self.histogram), np.asarray(other.histogram)
