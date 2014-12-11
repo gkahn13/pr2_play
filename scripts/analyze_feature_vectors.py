@@ -14,13 +14,16 @@ import matplotlib.pyplot as plt
 import IPython
 
 data_folder = '../data/'
+image_folder = '../figs/'
+
+from play import big_cloths, hards, rugs, small_cloths
 
 class AnalyzeFeatureVectors:
     def __init__(self, file_paths):
         """
         :param file_names: list of .npy containing feature vectors
         """
-        self.file_names = [f.replace('push_','').replace(data_folder,'').replace('.npy','') for f in file_paths]
+        self.file_names = [f.replace('push_','').replace('sound_','').replace(data_folder,'').replace('.npy','') for f in file_paths]
         names_and_files = zip(self.file_names, file_paths)
         self.fvs = { n : np.load(f) for n, f in names_and_files }
         
@@ -61,7 +64,7 @@ class AnalyzeFeatureVectors:
     # display methods #
     ###################
     
-    def display_similarity_matrix(self):
+    def display_similarity_matrix(self, save_file=None):
         N = len(self.file_names)
 
         plt.figure()
@@ -71,6 +74,36 @@ class AnalyzeFeatureVectors:
         plt.xticks(np.arange(0.5,N+0.5), self.file_names, rotation='vertical')
         plt.title('Similarity matrix')
         plt.show(block=False)
+        
+        if save_file is not None:
+            plt.savefig(save_file)
+            
+    def display_2d(self):
+        cov = self.covariance
+        U, S, V = np.linalg.svd(cov)
+        
+        P = U[:,:2].T.dot(self.data)
+        
+        f = plt.figure()
+        ax = f.add_subplot(111)
+        
+        for i, file_name in enumerate(self.file_names):
+            s='rx'
+            if file_name in rugs:
+                s = 'bo'
+            elif file_name in big_cloths:
+                s = 'g^'
+            elif file_name in hards:
+                s = 'rx'
+            elif file_name in small_cloths:
+                s = 'gx'
+    
+            ax.plot(P[0,i], P[1,i], s, markersize=8.0)
+        
+        #plt.plot(P[0,:], P[1,:], 'rx', markersize=10.0)
+        plt.show(block=False)
+        
+        IPython.embed()
         
     #################
     # print methods #
@@ -83,14 +116,40 @@ class AnalyzeFeatureVectors:
             j = S[i,:].argmax()
             print('{0:<15} : {1}'.format(file_name, self.file_names[j]))
         
-if __name__ == '__main__':
+#########
+# TESTS #
+#########
+
+def analyze_push():
     file_names = [data_folder+f for f in os.listdir(data_folder) if '.npy' in f and 'push' in f]
     file_names = sorted(sorted(file_names), key=lambda x : x.split('_')[-1])
     afv = AnalyzeFeatureVectors(file_names)
     
-    afv.display_similarity_matrix()
+    afv.display_similarity_matrix(save_file=image_folder+'push_similarity.jpg')
     afv.print_most_similar()
     
     print('Press enter to exit')
     raw_input()
         
+def analyze_sound():
+    file_names = sorted([data_folder+f for f in os.listdir(data_folder) if '.npy' in f and 'sound' in f])
+    file_names = [data_folder+'sound_'+f+'.npy' for f in small_cloths + big_cloths + hards + rugs]
+    afv = AnalyzeFeatureVectors(file_names)
+    
+    #afv.display_similarity_matrix(save_file=image_folder+'sound_similarity.jpg')
+    #afv.print_most_similar()
+    
+    afv.display_2d()
+    
+    print('Press enter to exit')
+    raw_input()
+        
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('type', choices=('push','sound'))
+    args = parser.parse_args()
+    
+    if args.type == 'push':
+        analyze_push()
+    elif args.type == 'sound':
+        analyze_sound()
