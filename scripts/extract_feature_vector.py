@@ -178,7 +178,8 @@ class ExtractFeatureVector:
     @property
     def sound_feature_vector(self):
         v = list()
-        v += [np.max(self.sound_peaks), np.mean(self.sound_peaks)] # GOOD
+        v += self.sound_peaks
+        #v += [np.max(self.sound_peaks), np.mean(self.sound_peaks)] # GOOD
         #v.append(self.avg_sound_peak)
         #v += list(self.mfcc_sound_features)
         #v.append(self.sound_energy)
@@ -299,8 +300,8 @@ class ImageTexture:
         
     @property
     def histogram(self):
-        radius = 3
-        n_points = 8 * radius
+        radius = 5 # 3
+        n_points = 20*radius # 8 * radius
         method = 'uniform'
         
         lbp = local_binary_pattern(self.img, n_points, radius, method)
@@ -385,7 +386,14 @@ def save_sound_feature_vectors():
     #    min_ind = np.argmin(dists)
     #    print('{0:<10} : {1}'.format(efds[i].name, efds[min_ind].name))           
                     
-        
+def save_image_feature_vectors():
+    for material in all_materials:
+        img = sci.misc.imread(data_folder + material + '.jpg')
+        texture = ImageTexture(img)
+        hist = texture.histogram
+        npy_name = data_folder + material + '.npy'
+        print('Saving histogram to {0}'.format(npy_name))
+        np.save(npy_name, hist)
             
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -394,6 +402,7 @@ if __name__ == '__main__':
     parser.add_argument('--print-push-files', action='store_true')
     parser.add_argument('--save-push', action='store_true')
     parser.add_argument('--save-sound', action='store_true')
+    parser.add_argument('--save-images', action='store_true')
 
     args = parser.parse_args()
     
@@ -406,6 +415,8 @@ if __name__ == '__main__':
             save_push_feature_vectors()
         elif args.save_sound:
             save_sound_feature_vectors()
+        elif args.save_images:
+            save_image_feature_vectors()
     else:
         efd = ExtractFeatureVector(data_folder + args.npz_name)
         #efd.display_forces()

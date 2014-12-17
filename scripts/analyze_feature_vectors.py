@@ -6,17 +6,20 @@ Analyze the feature vectors
 
 import os
 import argparse
-
+from collections import defaultdict
 
 import numpy as np
 import matplotlib.pyplot as plt
+
+from sklearn import neighbors
+from matplotlib.colors import ListedColormap
 
 import IPython
 
 data_folder = '../data/'
 image_folder = '../figs/'
 
-from play import big_cloths, hards, rugs, small_cloths
+from play import big_cloths, hards, rugs, small_cloths, all_materials
 
 class AnalyzeFeatureVectors:
     def __init__(self, file_paths):
@@ -59,6 +62,10 @@ class AnalyzeFeatureVectors:
     def similarity_matrix(self):
         D = self.distance_matrix
         return D.max() - D
+        
+    #####################
+    # NN classification #
+    #####################
             
     ###################
     # display methods #
@@ -78,32 +85,71 @@ class AnalyzeFeatureVectors:
         if save_file is not None:
             plt.savefig(save_file)
             
-    def display_2d(self):
+    def display_materials_2d(self, save_file=None, plot_nn=False, nn_res=1, loc='upper left'):
         cov = self.covariance
         U, S, V = np.linalg.svd(cov)
         
         P = U[:,:2].T.dot(self.data)
         
-        f = plt.figure()
+        f = plt.figure(figsize=(15,15))
         ax = f.add_subplot(111)
-        
+
+        material = defaultdict(list)
+        categories = ['rugs', 'hards', 'big cloths', 'small cloths']
+        #styles = ['bo', 'g^', 'rx', 'gx']
+        styles = ['o', '^', 'x', 'x']
         for i, file_name in enumerate(self.file_names):
-            s='rx'
             if file_name in rugs:
-                s = 'bo'
+                material['rugs'].append(list(P[:,i]))
             elif file_name in big_cloths:
-                s = 'g^'
+                material['big cloths'].append(list(P[:,i]))
             elif file_name in hards:
-                s = 'rx'
+                material['hards'].append(list(P[:,i]))
             elif file_name in small_cloths:
-                s = 'gx'
+                material['small cloths'].append(list(P[:,i]))
+
+        cmap_light = ListedColormap(['#AAFFAA', '#AAAAFF', '#FFAAAA', '#FFAAFF'])
+        cmap_bold = ListedColormap(['#00FF00', '#0000FF', '#FF0000', '#FF00FF'])
     
-            ax.plot(P[0,i], P[1,i], s, markersize=8.0)
+        for m, style, color in zip(categories, styles, cmap_bold.colors):
+            arr = np.array(material[m])
+            ax.plot(arr[:,0], arr[:,1], style, color=color, markersize=8.0, label=m)
+
+        #plt.title('Projected sound feature vectors')
         
-        #plt.plot(P[0,:], P[1,:], 'rx', markersize=10.0)
+        if plot_nn:
+            n_neighbors = 5 # 3
+            weights = 'distance' # uniform
+            
+            clf = neighbors.KNeighborsClassifier(n_neighbors, weights=weights)
+            X, y = list(), list()
+            for i, m in enumerate(categories):
+                X += material[m]
+                y += len(material[m])*[i]
+            
+            X, y = np.array(X), np.array(y)
+                        
+            clf.fit(X, y)
+
+            # Plot the decision boundary. For that, we will assign a color to each
+            # point in the mesh [x_min, m_max]x[y_min, y_max].
+            x_min, x_max = X[:, 0].min() - nn_res, X[:, 0].max() + nn_res
+            y_min, y_max = X[:, 1].min() - nn_res, X[:, 1].max() + nn_res
+            xx, yy = np.meshgrid(np.arange(x_min, x_max, nn_res),
+                                 np.arange(y_min, y_max, nn_res))
+            Z = clf.predict(np.c_[xx.ravel(), yy.ravel()])
+
+            # Put the result into a color plot
+            Z = Z.reshape(xx.shape)
+            #plt.figure()
+            ax.pcolormesh(xx, yy, Z, cmap=cmap_light)
+
+
+        plt.legend(loc=loc)
         plt.show(block=False)
         
-        IPython.embed()
+        if save_file is not None:
+            plt.savefig(save_file)
         
     #################
     # print methods #
@@ -139,17 +185,27 @@ def analyze_sound():
     #afv.display_similarity_matrix(save_file=image_folder+'sound_similarity.jpg')
     #afv.print_most_similar()
     
-    afv.display_2d()
+    afv.display_materials_2d(save_file=image_folder+'sound_projected.jpg', plot_nn=True, nn_res=10)
     
     print('Press enter to exit')
     raw_input()
+    
+def analyze_images():
+    file_names = sorted([data_folder + material + '.npy' for material in all_materials])
+    afv = AnalyzeFeatureVectors(file_names)
+    
+    afv.display_materials_2d(save_file=image_folder+'image_projected.jpg', plot_nn=True, nn_res=0.0002, loc='lower right')
+    
+    IPython.embed()
         
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('type', choices=('push','sound'))
+    parser.add_argument('type', choices=('push','sound','images'))
     args = parser.parse_args()
     
     if args.type == 'push':
         analyze_push()
     elif args.type == 'sound':
         analyze_sound()
+    elif args.type == 'images':
+        analyze_images()
