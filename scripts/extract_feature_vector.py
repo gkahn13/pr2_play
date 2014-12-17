@@ -36,6 +36,7 @@ data_folder = '../data/'
 image_folder = '../figs/'
 push_files = ['push_{0}_on_{1}'.format(o, f) for o in object_materials for f in floor_materials]
 sound_files = ['sound_{0}'.format(o) for o in all_materials]
+test_files = ['test_{0}'.format(n) for n in ['h1','h2','r1','r2','sc1','sc2','sc3','sc4']]
 
 class ExtractFeatureVector:
     def __init__(self, npz_name):
@@ -387,11 +388,12 @@ def save_sound_feature_vectors():
     #    print('{0:<10} : {1}'.format(efds[i].name, efds[min_ind].name))           
                     
 def save_image_feature_vectors():
-    for material in all_materials:
-        img = sci.misc.imread(data_folder + material + '.jpg')
+    file_names = [data_folder+material+'.jpg' for material in all_materials + test_files]
+    for name in file_names:
+        img = sci.misc.imread(name)
         texture = ImageTexture(img)
         hist = texture.histogram
-        npy_name = data_folder + material + '.npy'
+        npy_name = name.replace('.jpg','.npy')
         print('Saving histogram to {0}'.format(npy_name))
         np.save(npy_name, hist)
             

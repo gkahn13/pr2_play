@@ -20,6 +20,7 @@ data_folder = '../data/'
 image_folder = '../figs/'
 
 from play import big_cloths, hards, rugs, small_cloths, all_materials
+from extract_feature_vector import test_files
 
 class AnalyzeFeatureVectors:
     def __init__(self, file_paths):
@@ -66,6 +67,48 @@ class AnalyzeFeatureVectors:
     #####################
     # NN classification #
     #####################
+    
+    def classify(self, test_afv):
+        def label(name):
+            if 'r' in name: return 0
+            elif 'h' in name: return 1
+            elif 'bc' in name: return 2
+            elif 'sc' in name: return 3
+            else: raise Exception()
+                
+        def name(num):
+            if num == 0: return 'rugs'
+            elif num == 1: return 'hards'
+            elif num == 2: return 'big cloths'
+            elif num == 3: return 'small cloths'
+            else: raise Exception()
+    
+        X = self.data.T
+        y = np.array([label(n) for n in self.file_names])
+    
+        n_neighbors = 3 # 3
+        weights = 'uniform' # uniform
+            
+        clf = neighbors.KNeighborsClassifier(n_neighbors, weights=weights)
+        clf.fit(X, y)
+        
+        
+        for file_name in test_afv.file_names:
+            x_test = test_afv.fvs[file_name]
+            l = clf.predict(x_test)[0]
+        
+            print('{0}'.format(file_name))
+            print('Class : {0}'.format(name(l)))
+            closest, min_dist = None, np.inf
+            for f in self.file_names:
+                if label(f) == l:
+                    dist = np.linalg.norm(self.fvs[f] - x_test)
+                    if dist < min_dist:
+                        min_dist = dist
+                        closest = f
+            print('Closest : {0}'.format(closest))
+            print('')
+    
             
     ###################
     # display methods #
@@ -198,9 +241,18 @@ def analyze_images():
     
     IPython.embed()
         
+def classify():
+    file_names = sorted([data_folder + material + '.npy' for material in all_materials])
+    afv = AnalyzeFeatureVectors(file_names)
+    
+    test_file_names = sorted([data_folder + f + '.npy' for f in test_files])
+    test_afv = AnalyzeFeatureVectors(test_file_names)
+    
+    afv.classify(test_afv)
+        
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('type', choices=('push','sound','images'))
+    parser.add_argument('type', choices=('push','sound','images','classify'))
     args = parser.parse_args()
     
     if args.type == 'push':
@@ -209,3 +261,5 @@ if __name__ == '__main__':
         analyze_sound()
     elif args.type == 'images':
         analyze_images()
+    elif args.type == 'classify':
+        classify()
